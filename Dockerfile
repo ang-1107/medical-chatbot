@@ -2,11 +2,11 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Copy setup.py and requirements.txt first (for layer caching)
-COPY setup.py requirements.txt ./
+# Copy packaging files first for layer caching.
+COPY pyproject.toml README.md ./
 
 # Install dependencies
-RUN pip install --upgrade pip && pip install -r requirements.txt
+RUN pip install --upgrade pip && pip install .
 
 # Now copy the rest of your code
 COPY . .

@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rag-chatbot"
+version = "0.1.0"
+description = "A Flask and LangChain medical RAG chatbot backed by Pinecone and Hugging Face."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+authors = [
+    { name = "Angel Mandhwani" },
+]
+dependencies = [
+    "flask>=3.0,<4.0",
+    "langchain>=0.3,<0.4",
+    "langchain-community>=0.3,<0.4",
+    "langchain-core>=0.3,<0.4",
+    "langchain-huggingface>=0.1,<0.2",
+    "pinecone[grpc]>=5.0,<6.0",
+    "pypdf>=5.0,<6.0",
+    "python-dotenv>=1.0,<2.0",
+    "sentence-transformers>=3.0,<4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.10,<25.0",
+    "pyright>=1.1.390,<2.0",
+    "pytest>=8.3,<9.0",
+    "ruff>=0.8,<0.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  \.git
+  | \.venv
+  | \.ipynb_checkpoints
+  | __pycache__
+)/
+'''
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+fix = true
+extend-exclude = [".venv", ".ipynb_checkpoints"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+combine-as-imports = true
+force-sort-within-sections = false
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["app.py", "src", "tests"]
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "basic"

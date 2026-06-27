@@ -66,18 +66,19 @@ The backend is built using **Flask**, ensuring lightweight and responsive deploy
    cd medical-chatbot
    ```
 
-2. **Create a Conda Environment(Optional)**
+2. **Create and activate a virtual environment**
    ```bash
-   conda create -n medibot
-   conda activate medibot
+   python -m venv .venv
+   source .venv/bin/activate
    ```
 
 3. **Install dependencies**
    ```bash
-   pip install -r requirements.txt
+   pip install -e .
    ```
 
 4. **Create the .env file in `/`**
+   Use `.env.example` as the template:
    ```md
    PINECONE_API_KEY=xxxx
    HUGGINGFACEHUB_API_KEY=xxxx
@@ -85,7 +86,7 @@ The backend is built using **Flask**, ensuring lightweight and responsive deploy
 
 5. **Create vector embeddings (only once)**
     ```bash
-    python store_index.py
+   python -m src.indexing
     ```
 
 6. **Run the app**
@@ -113,4 +114,12 @@ This project is licensed under the MIT License.
 
 ## 🤝 Contributions
 Feel free to fork, raise issues, or submit PRs to improve this project!
+
+For contributor/developer setup, install the development extras:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]
+```
 
