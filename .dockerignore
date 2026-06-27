@@ -1,0 +1,9 @@
+__pycache__/        # 🔁 Python cache files, not needed in container
+*.pyc               # 🔁 Compiled Python bytecode, auto-generated
+*.pyo               # 🔁 Python optimized files, also auto-generated
+*.db                # ❌ Local databases (e.g., SQLite), usually dev/test only
+.ipynb_checkpoints/ # 📒 Jupyter autosaves, not needed for production
+*.ipynb             # 📒 Research notebooks, not part of the running app
+*.env               # 🔐 Secrets (like API keys), should be injected securely
+*.log               # 🧾 Log files from dev/test runs, not useful in container
+.vscode/            # 💻 Editor settings, only for devs
