@@ -7,8 +7,8 @@
 
 
 An advanced chatbot for preliminary medical diagnosis using open source **Mistral LLM**, **LangChain**, and **PineconeDB**. It supports:
-- Symptom-based queries  
-- Analysis of user-inputted test results  
+- Symptom-based queries
+- Analysis of user-inputted test results
 - Probability-based disease predictions
 
 The backend is built using **Flask**, ensuring lightweight and responsive deployment.
@@ -42,18 +42,18 @@ The backend is built using **Flask**, ensuring lightweight and responsive deploy
 
 ## 🛠️ How It Works
 
-1. 📘 **Embedding Medical Data**  
+1. 📘 **Embedding Medical Data**
    - Medical content is embedded into vector representations using Hugging Face transformers.
    - These embeddings are stored in Pinecone for fast retrieval.
 
-2. 🔎 **Query Processing**  
+2. 🔎 **Query Processing**
    - A user submits a symptom or medical test-related query.
    - LangChain fetches relevant context using vector similarity from Pinecone.
 
-3. 🧾 **LLM-Based Answering**  
+3. 🧾 **LLM-Based Answering**
    - Mistral LLM uses retrieved documents and user input to generate medically coherent answers.
 
-4. 🔁 **Session Handling**  
+4. 🔁 **Session Handling**
    - Conversations are state-aware using LangChain's memory components.
 
 ---
@@ -122,4 +122,3 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
 ```
-
