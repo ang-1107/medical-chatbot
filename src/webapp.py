@@ -21,11 +21,12 @@ class RagService:
 
 
 def _build_rag_chain():
+    from huggingface_hub import InferenceClient
     from langchain.chains import create_retrieval_chain
     from langchain.chains.combine_documents import create_stuff_documents_chain
     from langchain_community.vectorstores import Pinecone as LangchainPinecone
     from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
-    from langchain_huggingface import HuggingFaceEndpoint
+    from langchain_core.runnables import RunnableLambda
 
     from src.helper import download_hugging_face_embeddings
     from src.hybrid_retrieval import (
@@ -35,6 +36,11 @@ def _build_rag_chain():
         DEFAULT_HYBRID_K,
         HybridRetriever,
         load_bm25_index,
+    )
+    from src.llm_config import (
+        DEFAULT_LLM_MAX_NEW_TOKENS,
+        DEFAULT_LLM_MODEL_NAME,
+        DEFAULT_LLM_TEMPERATURE,
     )
 
     pinecone_api_key = os.environ.get("PINECONE_API_KEY")
@@ -76,13 +82,37 @@ def _build_rag_chain():
             final_k=final_k,
         )
 
-    llm = HuggingFaceEndpoint(
-        model="mistralai/Mistral-7B-Instruct-v0.1",
-        endpoint_url="https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1",
-        huggingfacehub_api_token=huggingfacehub_api_key,
-        temperature=0.4,
-        max_new_tokens=500,
+    llm_model_name = os.environ.get("LLM_MODEL_NAME", DEFAULT_LLM_MODEL_NAME)
+    llm_temperature = float(
+        os.environ.get("LLM_TEMPERATURE", str(DEFAULT_LLM_TEMPERATURE))
     )
+    llm_max_new_tokens = int(
+        os.environ.get("LLM_MAX_NEW_TOKENS", str(DEFAULT_LLM_MAX_NEW_TOKENS))
+    )
+
+    hf_client = InferenceClient(model=llm_model_name, token=huggingfacehub_api_key)
+
+    def invoke_llm(prompt_value: Any) -> str:
+        role_map = {"human": "user", "ai": "assistant", "system": "system"}
+        if hasattr(prompt_value, "to_messages"):
+            messages = [
+                {
+                    "role": role_map.get(str(message.type), "user"),
+                    "content": str(message.content),
+                }
+                for message in prompt_value.to_messages()
+            ]
+        else:
+            messages = [{"role": "user", "content": str(prompt_value)}]
+
+        response = hf_client.chat_completion(
+            messages=messages,
+            max_tokens=llm_max_new_tokens,
+            temperature=llm_temperature,
+        )
+        return str(response.choices[0].message.content or "").strip()
+
+    llm = RunnableLambda(invoke_llm)
 
     prompt = ChatPromptTemplate.from_messages(
         [
