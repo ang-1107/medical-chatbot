@@ -92,7 +92,7 @@ def test_build_index_manifest_records_sources_and_chunk_count(tmp_path):
 
     manifest = build_index_manifest(
         index_name="medbot",
-        embedding_model_name="sentence-transformers/all-MiniLM-L6-v2",
+        embedding_model_name="NeuML/biomedbert-small-embeddings",
         embedding_dimension=384,
         chunk_size=500,
         chunk_overlap=80,

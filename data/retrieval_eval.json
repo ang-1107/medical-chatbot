@@ -1,0 +1,111 @@
+{
+  "candidate_pages": [
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110,
+    111,
+    112,
+    113,
+    114,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    163,
+    164
+  ],
+  "examples": [
+    {
+      "question": "What causes an abscess and how is it treated?",
+      "reference_answer": "An abscess is a pocket of pus caused by infection. Treatment usually involves drainage and sometimes antibiotics.",
+      "relevant_pages": [
+        27,
+        28,
+        29,
+        30
+      ]
+    },
+    {
+      "question": "What is acne and what kinds of treatment are used?",
+      "reference_answer": "Acne is an inflammatory skin condition. Treatment can include topical therapy, oral antibiotics, and isotretinoin in severe cases.",
+      "relevant_pages": [
+        38,
+        39,
+        40,
+        41
+      ]
+    },
+    {
+      "question": "What is acupressure used for?",
+      "reference_answer": "Acupressure is used for symptom relief and pain control, including headaches, aches, colds, flu, and stress-related symptoms.",
+      "relevant_pages": [
+        50,
+        51,
+        52
+      ]
+    },
+    {
+      "question": "What are alcoholism and alcohol dependence?",
+      "reference_answer": "Alcoholism refers to alcohol abuse and alcohol dependence, both involving repeated life problems caused by alcohol use.",
+      "relevant_pages": [
+        109,
+        110,
+        111
+      ]
+    },
+    {
+      "question": "What is amebiasis and how can it be prevented?",
+      "reference_answer": "Amebiasis is an intestinal infection that can cause diarrhea and abdominal symptoms. Prevention focuses on clean water, hygiene, and sanitation.",
+      "relevant_pages": [
+        158,
+        159,
+        160
+      ]
+    },
+    {
+      "question": "What is amenorrhea and what causes it?",
+      "reference_answer": "Amenorrhea is the absence of menstruation and can be caused by pregnancy, hormonal problems, low body weight, exercise, or other health issues.",
+      "relevant_pages": [
+        161,
+        162
+      ]
+    }
+  ],
+  "name": "medical-book-retrieval-baseline",
+  "source": "data/Medical_book.pdf"
+}

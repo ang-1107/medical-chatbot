@@ -91,7 +91,17 @@ The backend is built using **Flask**, ensuring lightweight and responsive deploy
    This writes the ingestion manifest to `data/index_manifest.json` for local
    provenance and debugging.
 
-6. **Run the app**
+6. **Run the retrieval evaluation baseline**
+   ```bash
+   python -m src.evaluate
+   ```
+
+   The default model is `NeuML/biomedbert-small-embeddings`. Swap `--model-name`
+   to compare alternate embedding models against the same benchmark. The
+   default benchmark lives at `data/retrieval_eval.json` and cached runs are
+   saved to `data/eval_runs/`.
+
+7. **Run the app**
    ```bash
    python app.py
    ```

@@ -10,7 +10,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 DEFAULT_INDEX_NAME = "medbot"
-DEFAULT_EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+DEFAULT_EMBEDDING_MODEL_NAME = "NeuML/biomedbert-small-embeddings"
 DEFAULT_EMBEDDING_DIMENSION = 384
 DEFAULT_PINECONE_CLOUD = "aws"
 DEFAULT_PINECONE_REGION = "us-east-1"
