@@ -5,6 +5,7 @@ from langchain_core.documents import Document
 
 from src.helper import text_split
 from src.indexing import (
+    DEFAULT_BM25_INDEX_PATH,
     DEFAULT_INDEX_MANIFEST_PATH,
     _index_names,
     apply_chunk_metadata,
@@ -47,6 +48,10 @@ class FakeChunk:
 
 def test_default_index_manifest_path_points_to_data_directory():
     assert DEFAULT_INDEX_MANIFEST_PATH.as_posix() == "data/index_manifest.json"
+
+
+def test_default_bm25_index_path_points_to_data_directory():
+    assert DEFAULT_BM25_INDEX_PATH.as_posix() == "data/bm25_index.json"
 
 
 def test_text_split_preserves_section_heading_and_component_metadata():

@@ -6,16 +6,28 @@ import argparse
 import hashlib
 import json
 import math
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+os.environ.setdefault("TRANSFORMERS_NO_FLAX", "1")
+os.environ.setdefault("USE_TF", "0")
+os.environ.setdefault("USE_FLAX", "0")
 
 import numpy as np
 from langchain_core.documents import Document
 from sentence_transformers import SentenceTransformer
 
 from src.helper import load_pdf_file, text_split
+from src.hybrid_retrieval import (
+    DEFAULT_BM25_K,
+    DEFAULT_DENSE_K,
+    BM25Index,
+    rrf_merge,
+)
 from src.indexing import DEFAULT_CHUNK_OVERLAP, DEFAULT_CHUNK_SIZE, apply_chunk_metadata
 
 DEFAULT_BENCHMARK_PATH = Path("data") / "retrieval_eval.json"
@@ -113,9 +125,11 @@ def _evaluation_result_path(
     results_directory: str | Path,
     model_name: str,
     benchmark_path: str | Path,
+    retrieval_mode: str = "dense",
 ) -> Path:
     result_file_name = (
-        f"{_model_slug(model_name)}__{_benchmark_slug(benchmark_path)}.json"
+        f"{_model_slug(model_name)}__{retrieval_mode}"
+        f"__{_benchmark_slug(benchmark_path)}.json"
     )
     return Path(results_directory) / result_file_name
 
@@ -163,11 +177,13 @@ def save_evaluation_run(
     chunk_count: int,
     results: Sequence[RetrievalExampleResult],
     metrics: dict[str, float],
+    retrieval_mode: str = "dense",
 ) -> Path:
     results_path = _evaluation_result_path(
         results_directory=results_directory,
         model_name=model_name,
         benchmark_path=benchmark_path,
+        retrieval_mode=retrieval_mode,
     )
     results_path.parent.mkdir(parents=True, exist_ok=True)
     payload = PersistedEvaluationRun(
@@ -338,13 +354,21 @@ def evaluate_retrieval_model(
     top_k_values: Sequence[int] = DEFAULT_TOP_K_VALUES,
     batch_size: int = 32,
     results_directory: str | Path = DEFAULT_RESULTS_DIRECTORY,
+    retrieval_mode: str = "dense",
+    dense_top_k: int = DEFAULT_DENSE_K,
+    bm25_top_k: int = DEFAULT_BM25_K,
 ) -> tuple[list[RetrievalExampleResult], dict[str, float], Path | None]:
+    retrieval_mode = retrieval_mode.lower()
+    if retrieval_mode not in {"dense", "hybrid"}:
+        raise ValueError("retrieval_mode must be 'dense' or 'hybrid'")
+
     benchmark_path = Path(benchmark_path)
     benchmark_hash = _hash_file(benchmark_path)
     results_path = _evaluation_result_path(
         results_directory=results_directory,
         model_name=model_name,
         benchmark_path=benchmark_path,
+        retrieval_mode=retrieval_mode,
     )
 
     if results_path.exists():
@@ -389,10 +413,34 @@ def evaluate_retrieval_model(
     )
 
     ranked_scores = query_embeddings @ corpus_embeddings.T
+    bm25_index = (
+        BM25Index.from_documents(chunk_documents)
+        if retrieval_mode == "hybrid"
+        else None
+    )
+    chunk_index_by_id = {
+        id(chunk): index for index, chunk in enumerate(chunk_documents)
+    }
     results: list[RetrievalExampleResult] = []
 
     for example_index, example in enumerate(examples):
-        ranked_indices = _sorted_top_indices(ranked_scores[example_index])
+        dense_ranked_indices = _sorted_top_indices(ranked_scores[example_index])
+        if bm25_index is None:
+            ranked_indices = dense_ranked_indices
+        else:
+            dense_documents = [
+                chunk_documents[chunk_index]
+                for chunk_index in dense_ranked_indices[:dense_top_k]
+            ]
+            bm25_results = bm25_index.search(example.question, top_k=bm25_top_k)
+            merged_documents = rrf_merge(
+                dense_documents,
+                bm25_results,
+                final_k=max(top_k_values),
+            )
+            ranked_indices = [
+                chunk_index_by_id[id(document)] for document in merged_documents
+            ]
         relevant_indices = [
             chunk_index
             for chunk_index, chunk in enumerate(chunk_documents)
@@ -434,6 +482,7 @@ def evaluate_retrieval_model(
         results_directory=results_directory,
         model_name=model_name,
         benchmark_path=benchmark_path,
+        retrieval_mode=retrieval_mode,
         benchmark_hash=benchmark_hash,
         chunk_count=len(chunk_documents),
         results=results,
@@ -445,6 +494,8 @@ def evaluate_retrieval_model(
 
 def _format_summary(metrics: dict[str, float], *, model_name: str) -> str:
     lines = [f"Model: {model_name}"]
+    if "retrieval_mode" in metrics:
+        lines.append(f"Retrieval mode: {metrics['retrieval_mode']}")
     lines.append(f"Examples: {int(metrics['example_count'])}")
     lines.append(f"Chunks: {int(metrics['chunk_count'])}")
     lines.append(f"MRR: {metrics['mrr']:.4f}")
@@ -510,6 +561,24 @@ def build_argument_parser() -> argparse.ArgumentParser:
         default=str(DEFAULT_RESULTS_DIRECTORY),
         help="Directory used to persist evaluation runs.",
     )
+    parser.add_argument(
+        "--retrieval-mode",
+        choices=["dense", "hybrid"],
+        default="dense",
+        help="Evaluate dense-only retrieval or local BM25+dense hybrid retrieval.",
+    )
+    parser.add_argument(
+        "--dense-top-k",
+        type=int,
+        default=DEFAULT_DENSE_K,
+        help="Dense candidate count used before RRF in hybrid mode.",
+    )
+    parser.add_argument(
+        "--bm25-top-k",
+        type=int,
+        default=DEFAULT_BM25_K,
+        help="BM25 candidate count used before RRF in hybrid mode.",
+    )
     return parser
 
 
@@ -527,6 +596,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         top_k_values=top_k_values,
         batch_size=args.batch_size,
         results_directory=args.results_directory,
+        retrieval_mode=args.retrieval_mode,
+        dense_top_k=args.dense_top_k,
+        bm25_top_k=args.bm25_top_k,
     )
 
     if args.json:
@@ -534,6 +606,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             json.dumps(
                 {
                     "model_name": args.model_name,
+                    "retrieval_mode": args.retrieval_mode,
                     "metrics": metrics,
                     "results_path": str(results_path) if results_path else None,
                 },

@@ -18,6 +18,7 @@ DEFAULT_INDEX_METRIC = "cosine"
 DEFAULT_CHUNK_SIZE = 500
 DEFAULT_CHUNK_OVERLAP = 80
 DEFAULT_INDEX_MANIFEST_PATH = Path("data") / "index_manifest.json"
+DEFAULT_BM25_INDEX_PATH = Path("data") / "bm25_index.json"
 
 
 def _index_names(indexes: Any) -> set[str]:
@@ -248,6 +249,7 @@ def main() -> None:
     from pinecone.grpc import PineconeGRPC as Pinecone
 
     from src.helper import download_hugging_face_embeddings, load_pdf_file, text_split
+    from src.hybrid_retrieval import BM25Index, save_bm25_index
 
     load_dotenv()
 
@@ -294,6 +296,7 @@ def main() -> None:
         chunk_documents=text_chunks,
     )
     write_index_manifest(manifest)
+    save_bm25_index(BM25Index.from_documents(text_chunks), DEFAULT_BM25_INDEX_PATH)
 
     pc = Pinecone(api_key=pinecone_api_key)
     ensure_pinecone_index(

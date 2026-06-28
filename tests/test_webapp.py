@@ -67,6 +67,21 @@ def test_get_returns_json_answer_for_message():
     assert chain.invocations == [{"input": "I have a headache"}]
 
 
+def test_get_accepts_form_encoded_message():
+    retriever = DummyRetriever([])
+    chain = DummyChain("Form input works.")
+    app.config["TESTING"] = True
+    app.config["RAG_SERVICE"] = DummyService(retriever, chain)
+
+    with app.test_client() as client:
+        response = client.post("/get", data={"msg": "  What is BP?  "})
+
+    assert response.status_code == 200
+    assert response.get_json()["answer"] == "Form input works."
+    assert retriever.invocations == ["What is BP?"]
+    assert chain.invocations == [{"input": "What is BP?"}]
+
+
 def test_get_rejects_missing_message():
     app.config["TESTING"] = True
     app.config["RAG_SERVICE"] = DummyService(DummyRetriever([]), DummyChain("unused"))
@@ -87,6 +102,41 @@ def test_get_rejects_too_long_message():
 
     assert response.status_code == 413
     assert response.get_json() == {"error": "Message is too long."}
+
+
+def test_citations_are_truncated_and_deduplicated():
+    long_snippet = "x" * 300
+    documents = [
+        Document(
+            page_content=long_snippet,
+            metadata={
+                "source_file": "data/a.pdf",
+                "page_number": "3",
+                "chunk_id": "chunk-1",
+            },
+        ),
+        Document(
+            page_content=long_snippet,
+            metadata={
+                "source_file": "data/a.pdf",
+                "page_number": "3",
+                "chunk_id": "chunk-1",
+            },
+        ),
+    ]
+    app.config["TESTING"] = True
+    app.config["RAG_SERVICE"] = DummyService(
+        DummyRetriever(documents),
+        DummyChain("Answer."),
+    )
+
+    with app.test_client() as client:
+        response = client.post("/get", json={"msg": "question"})
+
+    citations = response.get_json()["citations"]
+    assert len(citations) == 1
+    assert len(citations[0]["snippet"]) == 240
+    assert citations[0]["snippet"].endswith("...")
 
 
 def test_template_uses_text_nodes_instead_of_raw_html_concatenation():

@@ -28,6 +28,14 @@ def _build_rag_chain():
     from langchain_huggingface import HuggingFaceEndpoint
 
     from src.helper import download_hugging_face_embeddings
+    from src.hybrid_retrieval import (
+        DEFAULT_BM25_INDEX_PATH,
+        DEFAULT_BM25_K,
+        DEFAULT_DENSE_K,
+        DEFAULT_HYBRID_K,
+        HybridRetriever,
+        load_bm25_index,
+    )
 
     pinecone_api_key = os.environ.get("PINECONE_API_KEY")
     huggingfacehub_api_key = os.environ.get("HUGGINGFACEHUB_API_KEY")
@@ -48,7 +56,25 @@ def _build_rag_chain():
         index_name=index_name, embedding=embeddings
     )
 
-    retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+    retrieval_mode = os.environ.get("RETRIEVAL_MODE", "dense").lower()
+    dense_k = int(os.environ.get("DENSE_TOP_K", str(DEFAULT_DENSE_K)))
+    bm25_k = int(os.environ.get("BM25_TOP_K", str(DEFAULT_BM25_K)))
+    final_k = int(os.environ.get("HYBRID_TOP_K", str(DEFAULT_HYBRID_K)))
+    bm25_index_path = os.environ.get("BM25_INDEX_PATH", str(DEFAULT_BM25_INDEX_PATH))
+
+    retriever = docsearch.as_retriever(
+        search_type="similarity",
+        search_kwargs={"k": dense_k if retrieval_mode == "hybrid" else final_k},
+    )
+
+    if retrieval_mode == "hybrid":
+        retriever = HybridRetriever(
+            dense_retriever=retriever,
+            bm25_index=load_bm25_index(bm25_index_path),
+            dense_k=dense_k,
+            bm25_k=bm25_k,
+            final_k=final_k,
+        )
 
     llm = HuggingFaceEndpoint(
         model="mistralai/Mistral-7B-Instruct-v0.1",

@@ -108,6 +108,29 @@ The backend is built using **Flask**, ensuring lightweight and responsive deploy
 
 The Flask app will run on http://localhost:8080
 
+### Hybrid retrieval
+
+The app defaults to dense Pinecone retrieval. Hybrid retrieval can be
+enabled after running `python -m src.indexing`, which writes the local BM25
+artifact at `data/bm25_index.json`.
+
+```bash
+RETRIEVAL_MODE=hybrid
+BM25_INDEX_PATH=data/bm25_index.json
+DENSE_TOP_K=20
+BM25_TOP_K=20
+HYBRID_TOP_K=5
+```
+
+Hybrid retrieval combines Pinecone semantic candidates with local BM25 lexical
+matches, deduplicates by stable chunk ID, and merges rankings with Reciprocal
+Rank Fusion. You can compare modes with:
+
+```bash
+python -m src.evaluate --retrieval-mode dense
+python -m src.evaluate --retrieval-mode hybrid --dense-top-k 20 --bm25-top-k 20
+```
+
 ---
 
 ## 📄 License

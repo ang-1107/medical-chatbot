@@ -4,6 +4,7 @@ import numpy as np
 
 from src.evaluate import (
     RetrievalExampleResult,
+    build_argument_parser,
     load_benchmark,
     load_retrieval_benchmark,
     load_saved_evaluation_run,
@@ -71,3 +72,15 @@ def test_score_example_computes_rank_metrics():
     assert np.isclose(precision_at_k[1], 0.0)
     assert np.isclose(mrr, 1 / 3)
     assert ndcg_at_k[5] > 0.0
+
+
+def test_argument_parser_supports_hybrid_retrieval_options():
+    parser = build_argument_parser()
+
+    args = parser.parse_args(
+        ["--retrieval-mode", "hybrid", "--dense-top-k", "30", "--bm25-top-k", "25"]
+    )
+
+    assert args.retrieval_mode == "hybrid"
+    assert args.dense_top_k == 30
+    assert args.bm25_top_k == 25

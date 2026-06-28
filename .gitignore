@@ -176,4 +176,5 @@ cython_debug/
 
 .agents/
 data/index_manifest.json
+data/bm25_index.json
 data/eval_runs
