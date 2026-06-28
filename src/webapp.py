@@ -1,4 +1,6 @@
 import os
+from dataclasses import dataclass
+from typing import Any
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
@@ -9,14 +11,20 @@ load_dotenv()
 
 app = Flask(__name__)
 MAX_MESSAGE_LENGTH = 4000
-_rag_chain = None
+_rag_service = None
+
+
+@dataclass(slots=True)
+class RagService:
+    retriever: Any
+    chain: Any
 
 
 def _build_rag_chain():
     from langchain.chains import create_retrieval_chain
     from langchain.chains.combine_documents import create_stuff_documents_chain
     from langchain_community.vectorstores import Pinecone as LangchainPinecone
-    from langchain_core.prompts import ChatPromptTemplate
+    from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
     from langchain_huggingface import HuggingFaceEndpoint
 
     from src.helper import download_hugging_face_embeddings
@@ -57,20 +65,67 @@ def _build_rag_chain():
         ]
     )
 
-    question_answer_chain = create_stuff_documents_chain(llm, prompt)
-    return create_retrieval_chain(retriever, question_answer_chain)
+    document_prompt = PromptTemplate.from_template(
+        "[source={source_file} page={page_number} chunk={chunk_id} "
+        "section={section_heading}] {page_content}"
+    )
+
+    question_answer_chain = create_stuff_documents_chain(
+        llm,
+        prompt,
+        document_prompt=document_prompt,
+    )
+    return RagService(
+        retriever=retriever,
+        chain=create_retrieval_chain(retriever, question_answer_chain),
+    )
 
 
-def get_rag_chain():
+def get_rag_service():
+    configured_service = app.config.get("RAG_SERVICE")
+    if configured_service is not None:
+        return configured_service
+
     configured_chain = app.config.get("RAG_CHAIN")
+    configured_retriever = app.config.get("RAG_RETRIEVER")
     if configured_chain is not None:
-        return configured_chain
+        return RagService(retriever=configured_retriever, chain=configured_chain)
 
-    global _rag_chain
-    if _rag_chain is None:
-        _rag_chain = _build_rag_chain()
+    global _rag_service
+    if _rag_service is None:
+        _rag_service = _build_rag_chain()
 
-    return _rag_chain
+    return _rag_service
+
+
+def _build_citations(retrieved_documents: list[Any]) -> list[dict[str, Any]]:
+    citations: list[dict[str, Any]] = []
+    seen_keys: set[tuple[Any, ...]] = set()
+
+    for document in retrieved_documents:
+        metadata = getattr(document, "metadata", {}) or {}
+        source = str(metadata.get("source_file") or metadata.get("source", "unknown"))
+        page_number = str(metadata.get("page_number") or metadata.get("page", ""))
+        chunk_id = str(metadata.get("chunk_id", ""))
+        snippet = str(getattr(document, "page_content", "")).strip()
+        if len(snippet) > 240:
+            snippet = snippet[:237].rstrip() + "..."
+
+        key = (source, page_number, chunk_id, snippet)
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+
+        citations.append(
+            {
+                "source": source,
+                "page": page_number,
+                "chunk_id": chunk_id,
+                "snippet": snippet,
+            }
+        )
+
+    return citations
 
 
 @app.route("/")
@@ -90,8 +145,18 @@ def chat():
         return jsonify({"error": "Message is too long."}), 413
 
     try:
-        response = get_rag_chain().invoke({"input": msg})
-        return jsonify({"answer": str(response["answer"])})
+        rag_service = get_rag_service()
+        retrieved_documents = []
+        if rag_service.retriever is not None:
+            retrieved_documents = rag_service.retriever.invoke(msg)
+
+        response = rag_service.chain.invoke({"input": msg})
+        return jsonify(
+            {
+                "answer": str(response["answer"]),
+                "citations": _build_citations(retrieved_documents),
+            }
+        )
     except Exception:
         app.logger.exception("RAG request failed")
         return (

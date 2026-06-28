@@ -175,3 +175,4 @@ cython_debug/
 .pypirc
 
 .agents/
+data/index_manifest.json

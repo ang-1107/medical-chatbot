@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from langchain_core.documents import Document
+
 from src.prompt import system_prompt
 from src.webapp import app
 
@@ -14,22 +16,60 @@ class DummyChain:
         return {"answer": self.answer}
 
 
+class DummyRetriever:
+    def __init__(self, documents):
+        self.documents = documents
+        self.invocations = []
+
+    def invoke(self, payload):
+        self.invocations.append(payload)
+        return self.documents
+
+
+class DummyService:
+    def __init__(self, retriever, chain):
+        self.retriever = retriever
+        self.chain = chain
+
+
 def test_get_returns_json_answer_for_message():
+    documents = [
+        Document(
+            page_content="Headache guidance comes from the context.",
+            metadata={
+                "source_file": "data/a.pdf",
+                "page_number": "3",
+                "chunk_id": "chunk-1",
+            },
+        )
+    ]
+    retriever = DummyRetriever(documents)
     chain = DummyChain("Use the supplied context only.")
     app.config["TESTING"] = True
-    app.config["RAG_CHAIN"] = chain
+    app.config["RAG_SERVICE"] = DummyService(retriever, chain)
 
     with app.test_client() as client:
         response = client.post("/get", json={"msg": "I have a headache"})
 
     assert response.status_code == 200
-    assert response.get_json() == {"answer": "Use the supplied context only."}
+    assert response.get_json() == {
+        "answer": "Use the supplied context only.",
+        "citations": [
+            {
+                "source": "data/a.pdf",
+                "page": "3",
+                "chunk_id": "chunk-1",
+                "snippet": "Headache guidance comes from the context.",
+            }
+        ],
+    }
+    assert retriever.invocations == ["I have a headache"]
     assert chain.invocations == [{"input": "I have a headache"}]
 
 
 def test_get_rejects_missing_message():
     app.config["TESTING"] = True
-    app.config["RAG_CHAIN"] = DummyChain("unused")
+    app.config["RAG_SERVICE"] = DummyService(DummyRetriever([]), DummyChain("unused"))
 
     with app.test_client() as client:
         response = client.post("/get", json={})
@@ -40,7 +80,7 @@ def test_get_rejects_missing_message():
 
 def test_get_rejects_too_long_message():
     app.config["TESTING"] = True
-    app.config["RAG_CHAIN"] = DummyChain("unused")
+    app.config["RAG_SERVICE"] = DummyService(DummyRetriever([]), DummyChain("unused"))
 
     with app.test_client() as client:
         response = client.post("/get", json={"msg": "x" * 4001})
@@ -64,3 +104,4 @@ def test_prompt_contains_medical_safety_contract():
     assert "urgent red flags" in system_prompt
     assert "Summary:" in system_prompt
     assert "{context}" in system_prompt
+    assert "source references" in system_prompt

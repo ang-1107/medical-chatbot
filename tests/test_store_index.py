@@ -1,12 +1,17 @@
 from types import SimpleNamespace
 
 import pytest
+from langchain_core.documents import Document
 
+from src.helper import text_split
 from src.indexing import (
+    DEFAULT_INDEX_MANIFEST_PATH,
     _index_names,
     apply_chunk_metadata,
+    build_index_manifest,
     ensure_pinecone_index,
     validate_index_compatibility,
+    write_index_manifest,
 )
 
 
@@ -38,6 +43,72 @@ class FakeChunk:
     def __init__(self, page_content, metadata):
         self.page_content = page_content
         self.metadata = metadata
+
+
+def test_default_index_manifest_path_points_to_data_directory():
+    assert DEFAULT_INDEX_MANIFEST_PATH.as_posix() == "data/index_manifest.json"
+
+
+def test_text_split_preserves_section_heading_and_component_metadata():
+    documents = [
+        Document(
+            page_content=(
+                "INTRODUCTION\n\n"
+                "This paragraph explains the basics. It is intentionally long enough "
+                "to be split into smaller semantic pieces. Another sentence follows."
+            ),
+            metadata={"source": "data/example.pdf", "page": 2},
+        )
+    ]
+
+    chunks = text_split(documents, chunk_size=70, chunk_overlap=10)
+
+    assert chunks
+    assert chunks[0].metadata["section_heading"] == "INTRODUCTION"
+    assert chunks[0].metadata["source_file"] == "data/example.pdf"
+    assert chunks[0].metadata["page_number"] == "2"
+    assert "chunk_number" in chunks[0].metadata
+    assert "component_type" in chunks[0].metadata
+
+
+def test_build_index_manifest_records_sources_and_chunk_count(tmp_path):
+    source_path = tmp_path / "sample.pdf"
+    source_path.write_bytes(b"sample pdf bytes")
+    source_documents = [
+        Document(
+            page_content="content", metadata={"source": str(source_path), "page": 1}
+        )
+    ]
+    chunk_documents = [
+        Document(
+            page_content="content",
+            metadata={
+                "source_file": str(source_path),
+                "page_number": "1",
+                "chunk_number": 0,
+            },
+        )
+    ]
+
+    manifest = build_index_manifest(
+        index_name="medbot",
+        embedding_model_name="sentence-transformers/all-MiniLM-L6-v2",
+        embedding_dimension=384,
+        chunk_size=500,
+        chunk_overlap=80,
+        source_documents=source_documents,
+        chunk_documents=chunk_documents,
+    )
+
+    assert manifest["index_name"] == "medbot"
+    assert manifest["chunk_count"] == 1
+    assert manifest["source_files"][0]["source_file"] == str(source_path)
+    assert manifest["source_files"][0]["sha256"] is not None
+
+    manifest_path = tmp_path / "index_manifest.json"
+    write_index_manifest(manifest, manifest_path)
+    assert manifest_path.exists()
+    assert manifest_path.read_text(encoding="utf-8")
 
 
 def test_index_names_supports_names_method():
@@ -140,3 +211,4 @@ def test_apply_chunk_metadata_adds_stable_ids_and_metadata():
     assert chunks[0].metadata["content_hash"] == chunks[1].metadata["content_hash"]
     assert chunks[0].metadata["source_file"] == "data/a.pdf"
     assert chunks[0].metadata["page_number"] == "1"
+    assert chunks[0].metadata["chunk_number"] == "0"

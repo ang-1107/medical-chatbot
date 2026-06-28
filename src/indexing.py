@@ -1,7 +1,10 @@
 import hashlib
+import json
 import os
 from collections import defaultdict
 from collections.abc import Iterable
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
@@ -12,6 +15,9 @@ DEFAULT_EMBEDDING_DIMENSION = 384
 DEFAULT_PINECONE_CLOUD = "aws"
 DEFAULT_PINECONE_REGION = "us-east-1"
 DEFAULT_INDEX_METRIC = "cosine"
+DEFAULT_CHUNK_SIZE = 500
+DEFAULT_CHUNK_OVERLAP = 80
+DEFAULT_INDEX_MANIFEST_PATH = Path("data") / "index_manifest.json"
 
 
 def _index_names(indexes: Any) -> set[str]:
@@ -141,11 +147,16 @@ def apply_chunk_metadata(text_chunks: list[Any]) -> list[str]:
     chunk_ids: list[str] = []
 
     for chunk in text_chunks:
-        source = str(chunk.metadata.get("source", "unknown"))
-        page = str(chunk.metadata.get("page", "unknown"))
+        source = str(
+            chunk.metadata.get("source_file") or chunk.metadata.get("source", "unknown")
+        )
+        page = str(
+            chunk.metadata.get("page_number") or chunk.metadata.get("page", "unknown")
+        )
+        chunk_number = str(chunk.metadata.get("chunk_number", len(chunk_ids)))
         content_hash = _hash_content(chunk.page_content)
 
-        base_key = f"{source}|{page}|{content_hash}"
+        base_key = f"{source}|{page}|{chunk_number}|{content_hash}"
         occurrence = per_chunk_occurrences[base_key]
         per_chunk_occurrences[base_key] += 1
 
@@ -155,6 +166,7 @@ def apply_chunk_metadata(text_chunks: list[Any]) -> list[str]:
         chunk.metadata["content_hash"] = content_hash
         chunk.metadata["page_number"] = page
         chunk.metadata["source_file"] = source
+        chunk.metadata["chunk_number"] = chunk_number
         chunk_ids.append(chunk_id)
 
     return chunk_ids
@@ -168,6 +180,65 @@ def _embedding_dimension(embeddings: Any) -> int | None:
         if value is not None:
             return int(value)
     return None
+
+
+def _hash_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file_handle:
+        for chunk in iter(lambda: file_handle.read(8192), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def build_index_manifest(
+    *,
+    index_name: str,
+    embedding_model_name: str,
+    embedding_dimension: int,
+    chunk_size: int,
+    chunk_overlap: int,
+    source_documents: list[Any],
+    chunk_documents: list[Any],
+) -> dict[str, Any]:
+    sources: dict[str, dict[str, Any]] = {}
+    for document in source_documents:
+        source_file = str(document.metadata.get("source", "unknown"))
+        page_number = str(
+            document.metadata.get("page", document.metadata.get("page_number", ""))
+        )
+        source_path = Path(source_file)
+        source_entry = sources.setdefault(
+            source_file,
+            {
+                "source_file": source_file,
+                "sha256": _hash_file(source_path) if source_path.exists() else None,
+                "pages": [],
+            },
+        )
+        if page_number and page_number not in source_entry["pages"]:
+            source_entry["pages"].append(page_number)
+
+    return {
+        "created_at": datetime.now(UTC).isoformat(),
+        "index_name": index_name,
+        "embedding_model_name": embedding_model_name,
+        "embedding_dimension": embedding_dimension,
+        "chunk_size": chunk_size,
+        "chunk_overlap": chunk_overlap,
+        "source_files": sorted(
+            sources.values(), key=lambda entry: entry["source_file"]
+        ),
+        "chunk_count": len(chunk_documents),
+    }
+
+
+def write_index_manifest(
+    manifest: dict[str, Any], manifest_path: Path = DEFAULT_INDEX_MANIFEST_PATH
+) -> None:
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
+    )
 
 
 def main() -> None:
@@ -192,12 +263,16 @@ def main() -> None:
     embedding_model_name = os.environ.get(
         "EMBEDDING_MODEL_NAME", DEFAULT_EMBEDDING_MODEL_NAME
     )
+    chunk_size = int(os.environ.get("CHUNK_SIZE", str(DEFAULT_CHUNK_SIZE)))
+    chunk_overlap = int(os.environ.get("CHUNK_OVERLAP", str(DEFAULT_CHUNK_OVERLAP)))
     dimension = int(
         os.environ.get("EMBEDDING_DIMENSION", str(DEFAULT_EMBEDDING_DIMENSION))
     )
 
     extracted_data = load_pdf_file(data="data/")
-    text_chunks = text_split(extracted_data)
+    text_chunks = text_split(
+        extracted_data, chunk_size=chunk_size, chunk_overlap=chunk_overlap
+    )
     embeddings = download_hugging_face_embeddings(model_name=embedding_model_name)
 
     inferred_dimension = _embedding_dimension(embeddings)
@@ -208,6 +283,17 @@ def main() -> None:
         )
 
     chunk_ids = apply_chunk_metadata(text_chunks)
+
+    manifest = build_index_manifest(
+        index_name=index_name,
+        embedding_model_name=embedding_model_name,
+        embedding_dimension=dimension,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        source_documents=extracted_data,
+        chunk_documents=text_chunks,
+    )
+    write_index_manifest(manifest)
 
     pc = Pinecone(api_key=pinecone_api_key)
     ensure_pinecone_index(

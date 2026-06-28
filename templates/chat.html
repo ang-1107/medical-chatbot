@@ -94,6 +94,37 @@
 					document.getElementById("messageFormeight").appendChild(wrapper);
 				}
 
+				function appendCitations(citations) {
+					if (!Array.isArray(citations) || citations.length === 0) {
+						return;
+					}
+
+					const citationList = document.createElement("ul");
+					citationList.className = "citation_list";
+
+					citations.forEach(function(citation) {
+						const citationItem = document.createElement("li");
+
+						const citationTitle = document.createElement("strong");
+						citationTitle.textContent =
+							(citation.source || "Unknown source") +
+							(citation.page ? " p. " + citation.page : "") +
+							(citation.chunk_id ? " · " + citation.chunk_id : "");
+						citationItem.appendChild(citationTitle);
+
+						if (citation.snippet) {
+							const snippet = document.createElement("div");
+							snippet.className = "citation_snippet";
+							snippet.textContent = citation.snippet;
+							citationItem.appendChild(snippet);
+						}
+
+						citationList.appendChild(citationItem);
+					});
+
+					document.getElementById("messageFormeight").appendChild(citationList);
+				}
+
 				$("#messageArea").on("submit", async function(event) {
 					event.preventDefault();
 
@@ -123,6 +154,7 @@
 						}
 
 						appendMessage(payload.answer, false, strTime);
+						appendCitations(payload.citations);
 					} catch (error) {
 						appendMessage("Sorry, I could not reach the server.", false, strTime);
 					}
