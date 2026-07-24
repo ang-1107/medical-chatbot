@@ -13,6 +13,8 @@ An advanced chatbot for preliminary medical diagnosis using open source **Llama 
 
 The backend is built using **Flask**, ensuring lightweight and responsive deployment.
 
+![Architecture Diagram](static/architecture.png)
+
 ---
 
 ## 🚀 Features
