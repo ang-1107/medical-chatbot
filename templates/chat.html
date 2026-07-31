@@ -99,8 +99,20 @@
 						return;
 					}
 
+					// Create container for sources section
+					const sourcesContainer = document.createElement("div");
+					sourcesContainer.className = "sources_container";
+
+					// Create toggle button
+					const toggleBtn = document.createElement("button");
+					toggleBtn.className = "sources_toggle_btn";
+					toggleBtn.innerHTML = `<i class="fas fa-chevron-right"></i> Show sources`;
+					toggleBtn.type = "button";
+
+					// Create citations list (hidden by default)
 					const citationList = document.createElement("ul");
 					citationList.className = "citation_list";
+					citationList.style.display = "none";
 
 					citations.forEach(function(citation) {
 						const citationItem = document.createElement("li");
@@ -122,7 +134,27 @@
 						citationList.appendChild(citationItem);
 					});
 
-					document.getElementById("messageFormeight").appendChild(citationList);
+					// Toggle functionality
+					let isExpanded = false;
+					toggleBtn.addEventListener("click", function(e) {
+						e.preventDefault();
+						isExpanded = !isExpanded;
+						citationList.style.display = isExpanded ? "block" : "none";
+						const icon = toggleBtn.querySelector("i");
+						if (isExpanded) {
+							icon.className = "fas fa-chevron-down";
+							toggleBtn.textContent = "";
+							toggleBtn.innerHTML = `<i class="fas fa-chevron-down"></i> Hide sources`;
+						} else {
+							icon.className = "fas fa-chevron-right";
+							toggleBtn.textContent = "";
+							toggleBtn.innerHTML = `<i class="fas fa-chevron-right"></i> Show sources`;
+						}
+					});
+
+					sourcesContainer.appendChild(toggleBtn);
+					sourcesContainer.appendChild(citationList);
+					document.getElementById("messageFormeight").appendChild(sourcesContainer);
 				}
 
 				$("#messageArea").on("submit", async function(event) {
