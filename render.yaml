@@ -2,9 +2,10 @@ services:
   - type: web
     name: rag-chatbot
     env: python
-    pythonVersion: 3.12
     buildCommand: pip install -e .
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.11
       - key: PORT
         value: 10000
