@@ -3,7 +3,7 @@ services:
     name: rag-chatbot
     env: python
     buildCommand: pip install -e .
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 180 --workers 1
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.11

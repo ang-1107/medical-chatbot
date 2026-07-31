@@ -127,10 +127,8 @@ def _build_rag_chain():
         ]
     )
 
-    document_prompt = PromptTemplate.from_template(
-        "[source={source_file} page={page_number} chunk={chunk_id} "
-        "section={section_heading}] {page_content}"
-    )
+    # Use a simple document prompt that doesn't require all metadata fields
+    document_prompt = PromptTemplate.from_template("{page_content}")
 
     question_answer_chain = create_stuff_documents_chain(
         llm,
