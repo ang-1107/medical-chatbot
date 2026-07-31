@@ -9,7 +9,13 @@ from src.prompt import system_prompt
 
 load_dotenv()
 
-app = Flask(__name__)
+# Configure Flask to find templates and static files from project root
+_base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+app = Flask(
+    __name__,
+    template_folder=os.path.join(_base_dir, "templates"),
+    static_folder=os.path.join(_base_dir, "static"),
+)
 MAX_MESSAGE_LENGTH = 4000
 _rag_service = None
 
