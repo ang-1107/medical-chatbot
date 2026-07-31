@@ -179,3 +179,4 @@ data/index_manifest.json
 data/bm25_index.json
 data/eval_runs
 data/eval_results
+Procfile
